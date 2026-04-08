@@ -1,0 +1,1471 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบข้อมูลน้ำท่วมเมืองน่าน (PC-version)</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        :root {
+            --primary: #2c3e50;
+            --accent: #e74c3c;
+            --blue: #3498db;
+            --sidebar-w: 500px;
+        }
+
+        body { font-family: 'Sarabun', sans-serif; 
+               margin: 0; 
+               display: flex; 
+               flex-direction: column; 
+               height: 100vh; 
+               overflow: hidden; 
+               background: #f4f7f6; }
+
+        /* Navigation */
+        nav { background: var(--primary); 
+              display: flex; 
+              justify-content: center; 
+              z-index: 1000; 
+              box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        .nav-link { padding: 15px 25px; 
+                    color: white; 
+                    text-decoration: none; 
+                    font-weight: bold; 
+                    cursor: pointer; 
+                    border-bottom: 4px solid transparent; }
+        .nav-link.active { border-bottom: 4px solid var(--accent); 
+                           background: rgba(255,255,255,0.1); }
+
+        .page-content { display: none; 
+                        flex-grow: 1; 
+                        height: calc(100vh - 54px); }
+        .page-content.active { display: flex; }
+
+        /* Sidebar */
+        .sidebar { width: var(--sidebar-w); 
+                   background: var(--primary); 
+                   color: white; 
+                   padding: 20px; 
+                   box-sizing: border-box; 
+                   display: flex; 
+                   flex-direction: column; 
+                   overflow-y: auto; }
+                   
+        .control-group { margin-bottom: 20px; }
+        .label { display: block; 
+                 margin-bottom: 10px; 
+                 color: var(--blue); 
+                 font-weight: bold; 
+                 font-size: 0.9rem; }
+        .btn-grid { display: grid; 
+                    grid-template-columns: 1fr 1fr; 
+                    gap: 8px; }
+        .btn { background: #34495e; 
+               border: 1px solid #555; 
+               color: #ccc; 
+               padding: 8px; 
+               cursor: pointer; 
+               border-radius: 4px; 
+               font-size: 0.8rem; 
+               transition: 0.3s; }
+        .btn:hover { background: #456789; 
+                     color: white; }
+        .btn.active { background: var(--accent); 
+                      color: white; 
+                      border-color: white; 
+                      font-weight: bold; }
+
+        /* Internal Tabs for Sidebar Page 2 */
+        .tab-container { display: flex; 
+                         margin-bottom: 15px; 
+                         border-bottom: 1px solid #444; }
+        .tab-btn { flex: 1; 
+                   padding: 10px; 
+                   background: none; 
+                   border: none; 
+                   color: #8899a6; 
+                   cursor: pointer; 
+                   font-size: 0.85rem; }
+        .tab-btn.active { color: white; 
+                          border-bottom: 2px solid var(--accent); 
+                          font-weight: bold; }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+
+        /* Main View Areas */
+        .main-view { flex-grow: 1; 
+                     position: relative; 
+                     background: #000; 
+                     display: flex; 
+                     align-items: center; 
+                     justify-content: center; }
+
+        /* Video Player Page 1 */
+        .video-container { width: 95%; 
+                           max-width: 1900px; 
+                           border: 4px solid white; 
+                           border-radius: 8px; 
+                           overflow: hidden; 
+                           box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        video { width: 100%; display: block; }
+
+        /* Map Area */
+        .leaflet-map-container { width: 100%; 
+                                 height: 100%; 
+                                 background: #ddd; }
+        .map-info { position: absolute; 
+                    bottom: 20px; 
+                    right: 20px; 
+                    background: rgba(0,0,0,0.7); 
+                    color: white; 
+                    padding: 10px 15px; 
+                    border-radius: 5px; 
+                    font-size: 0.8rem; 
+                    z-index: 1000; 
+                    pointer-events: none; }
+
+        /* Legend Styles */
+        .flood-legend { position: absolute; 
+                        bottom: 25px; 
+                        left: 10px; 
+                        background: rgba(255, 255, 255, 0.9); 
+                        padding: 8px 12px; 
+                        border-radius: 6px; 
+                        box-shadow: 0 0 15px rgba(0,0,0,0.2); 
+                        z-index: 1000; 
+                        font-size: 0.9rem; 
+                        width: 110px; 
+                        border: 1px solid #999; 
+                        color: #333; }
+        .legend-title { font-weight: bold; 
+                        margin-bottom: 6px; 
+                        text-align: center; 
+                        border-bottom: 1px solid #ccc; 
+                        padding-bottom: 3px; }
+        .legend-scale { display: flex; 
+                        flex-direction: column; }
+        .legend-item { display: flex; 
+                       align-items: center; 
+                       margin-bottom: 2px; }
+        .color-box { width: 18px; 
+                     height: 14px; 
+                     margin-right: 10px; 
+                     border: 0.5px solid #444; }
+
+        /* Color Scales */
+        .c_scale_high { background-color: #9e0000; } 
+        .c_scale_mid { background-color: #ffeb00; } 
+        .c_scale_low { background-color: #040ed8; }
+        
+        /* Add specific RP/Depth colors here if needed as per original style */
+        .rp25 { background-color: #7a0403; } 
+        .rp1 { background-color: #30123b; }
+        
+        /* Legend */
+        .map-info { position: absolute; 
+                    bottom: 20px; 
+                    right: 20px; 
+                    background: rgba(0,0,0,0.7); 
+                    color: white; 
+                    padding: 10px 15px; 
+                    border-radius: 5px; 
+                    font-size: 0.8rem; 
+                    z-index: 1000; 
+                    pointer-events: none; }
+        
+        /* Legend 11 color */
+         .flood-legend-p3 {
+             position: absolute;
+             bottom: 25px;
+             left: 10px;
+             background: rgba(255, 255, 255, 0.9);
+             padding: 8px 12px;
+             border-radius: 6px;
+             box-shadow: 0 0 15px rgba(0,0,0,0.2);
+             z-index: 1000;
+             font-size: 1.0rem;
+             width: 100px;
+             border: 1px solid #999;
+         }
+
+         .legend-title {
+             font-weight: bold;
+             margin-bottom: 6px;
+             text-align: center;
+             border-bottom: 1px solid #ccc;
+             padding-bottom: 3px;
+             color: #333;
+         }
+
+         .legend-scale {
+             display: flex;
+             flex-direction: column-reverse; /* ให้ 10 อยู่บน 0 อยู่ล่างตามความสูง */
+         }
+
+         .scale-item {
+             display: flex;
+             align-items: center;
+             margin-bottom: 1px;
+         }
+
+         .scale-color {
+             width: 18px;
+             height: 14px;
+             margin-right: 10px;
+             border: 0.5px solid #444;
+         }
+
+         /* color 10 */
+         .c10_0 { background-color: #9e0000; } /* 10.0m /
+         .c9_5  { background-color: #9e0000; } /* 9.4m /
+         .c9_0  { background-color: #d50000; } /* 9.0m /
+         .c8_5  { background-color: #ff0000; } /* 8.5m /
+         .c8_0  { background-color: #ff4800; } /* 8.0m /
+         .c7_5  { background-color: #ff4800; } /* 7.5m /
+         .c7_0  { background-color: #ff9000; } /* 7.0m /
+         .c6_5  { background-color: #ffc400; } /* 6.5m /
+         .c6_0  { background-color: #ffeb00; } /* 6.0m /
+         .c5_5  { background-color: #fffe47; } /* 5.5m /
+         .c5_0  { background-color: #fffe47; } /* 5.0m /
+         .c4_5  { background-color: #ceffff; } /* 4.5m /
+         .c4_0  { background-color: #aff5ff; } /* 4.0m /
+         .c3_5  { background-color: #9ceeff; } /* 3.5m /
+         .c3_0  { background-color: #86d9ff; } /* 3.0m /
+         .c2_5  { background-color: #86d9ff; } /* 2.5m /
+         .c2_0  { background-color: #6dc1ff; } /* 2.0m /
+         .c1_5  { background-color: #4196ff; } /* 1.5m /
+         .c1_0  { background-color: #2050ff; } /* 1.0m /
+         .c0_5  { background-color: #040ed8; } /* 0.5m /
+         .c0_0  { background-color: #040ed8; } /* 0.0m /
+         
+         /* Legend page 2 */
+         .flood-legend-p2 {
+             position: absolute;
+             bottom: 25px;
+             left: 10px;
+             background: rgba(255, 255, 255, 0.9);
+             padding: 8px 12px;
+             border-radius: 6px;
+             box-shadow: 0 0 15px rgba(0,0,0,0.2);
+             z-index: 1000;
+             font-size: 1.0rem;
+             width: 110px;
+             border: 1px solid #999;
+         }
+
+         .legend-item-p2 {
+             display: flex;
+             align-items: center;
+             margin-bottom: 2px;
+         }
+
+         .color-box {
+             width: 18px;
+             height: 14px;
+             margin-right: 10px;
+             border: 0.5px solid #444;
+         }
+
+         /* Return Period (color) */
+         .rp1 { background-color: #30123b; }
+         .rp2 { background-color: #3b3183; }
+         .rp3 { background-color: #424eba; }
+         .rp4 { background-color: #466be2; }
+         .rp5 { background-color: #4586f9; }
+         .rp6 { background-color: #3aa1fb; }
+         .rp7 { background-color: #29bbeb; }
+         .rp8 { background-color: #1cd2d1; }
+         .rp9 { background-color: #1de5b5; }
+         .rp10 { background-color: #33f297; }
+         .rp11 { background-color: #59fb74; }
+         .rp12 { background-color: #81fe53; }
+         .rp13 { background-color: #a3fc3d; }
+         .rp14 { background-color: #c0f335; }
+         .rp15 { background-color: #d9e336; }
+         .rp16 { background-color: #edcf39; }
+         .rp17 { background-color: #f9b837; }
+         .rp18 { background-color: #fd9d2e; }
+         .rp19 { background-color: #fa7e21; }
+         .rp20 { background-color: #f15f14; }
+         .rp21 { background-color: #e3450a; }
+         .rp22 { background-color: #d02f05; }
+         .rp23 { background-color: #b71d01; }
+         .rp24 { background-color: #9a0f01; }
+         .rp25 { background-color: #7a0403; }
+
+         /* Risk (10 colors) */
+         .d2_0 { background-color: #040ed8; }
+         .d4_0 { background-color: #2050ff; }
+         .d6_0 { background-color: #6dc1ff; }
+         .d8_0 { background-color: #9ceeff; }
+         .d10_0 { background-color: #ceffff; }
+         .d12_0 { background-color: #fffe47; }
+         .d14_0 { background-color: #ffc400; }
+         .d16_0 { background-color: #ff4800; }
+         .d18_0 { background-color: #d50000; }
+         .d20_0 { background-color: #9e0000; }
+
+#page1 .main-view {
+    position: relative;
+}
+
+#page1 .tab-panel {
+    display: none;
+    width: 100%;
+    height: 100%;
+}
+
+#page1 .tab-panel.active {
+    display: block;
+}
+
+#tab-scatter {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+#scatterChart {
+    width: 80% !important;
+    height: 80% !important;
+    background: white;
+    <!-- display: flex; -->
+    <!-- justify-content: center; /* กึ่งกลางแนวนอน */ -->
+    <!-- align-items: center;     /* กึ่งกลางแนวตั้ง */ -->
+  display: flex;
+  justify-content: center; /* กึ่งกลางแนวนอน */
+  align-items: center;     /* กึ่งกลางแนวตั้ง */
+  font-size: 1.5rem;
+
+}
+
+.tab-btn { 
+    flex: 1; 
+    padding: 12px; 
+    background: none; 
+    border: none; 
+    color: #8899a6; 
+    cursor: pointer; 
+    font-size: 1.15rem;
+    font-weight: 600;   /* 👈 optional but looks better */
+}
+
+    </style>
+</head>
+<body>
+
+    <nav>
+        <div class="nav-link active" onclick="showPage('page1')">1. การจำลองน้ำท่วมจากพายุวิภา ปี 2568</div>
+        <div class="nav-link" onclick="showPage('page5')">2. การประเมินความเสียหายของอาคารเบื้องต้น กรณีน้ำท่วมจากพายุวิภา ปี 2568</div>
+        <div class="nav-link" onclick="showPage('page2')">3. แผนที่ความเสี่ยง & ฉากทัศน์น้ำท่วม</div>
+        <div class="nav-link" onclick="showPage('page4')">4. วิเคราะห์ระดับน้ำ N.1</div>
+    </nav>
+
+<section id="page1" class="page-content active">
+
+    <!-- ===== SIDEBAR ===== -->
+    <aside class="sidebar">
+        <h3 style="border-bottom:1px solid #444; padding-bottom:10px;">
+            📊 การประเมินประสิทธิภาพของการจำลองน้ำท่วม
+        </h3>
+
+        <div class="tab-container">
+            <button class="tab-btn active" onclick="switchPage1Tab('video')">🎥 จำลองน้ำท่วม</button>
+            <button class="tab-btn" onclick="switchPage1Tab('map')">🗺️ แผนที่น้ำท่วมสูงสุด</button>
+            <button class="tab-btn" onclick="switchPage1Tab('scatter')">📊 ประสิทธิภาพของการจำลองน้ำท่วม</button>
+        </div>
+
+        <div class="control-group">
+            <span class="label">📌 คำอธิบาย</span>
+            <p style="font-size:0.85rem; line-height:1.5;">
+                ตรวจสอบประสิทธิภาพของแบบจำลอง<br>
+                เปรียบเทียบ Obs vs Sim และแสดงค่าความคลาดเคลื่อน
+            </p>
+        </div>
+
+        <div class="control-group">
+            <span class="label">📊 สรุปประสิทธิภาพของแบบจำลอง</span>
+            <div id="metrics-summary" style="font-size:1.5rem;"></div>
+        </div>
+    </aside>
+
+    <!-- ===== MAIN VIEW ===== -->
+    <div class="main-view">
+
+        <!-- ===== TAB 1: VIDEO ===== -->
+        <div id="tab-video" class="tab-panel active">
+            <div class="video-container">
+                <video controls autoplay loop muted>
+                    <source src="Sim_Flood_Nan_All.mp4" type="video/mp4">
+                </video>
+            </div>
+            <div style="position: absolute; bottom: 80px; color: white; text-align: center;">
+                <h3>การจำลองเหตุการณ์น้ำท่วมจากพายุวิภา ปี 2568 (Flood Simulation)</h3>
+            </div>
+        </div>
+        
+        <!-- ===== TAB 2: MAP ===== -->
+        <div id="tab-map" class="tab-panel">
+            <div id="map-page1" class="leaflet-map-container"></div>
+            
+            <div style="position: absolute; bottom: 370px; left: 130px; background: white; padding: 12px; border-radius: 8px; z-index: 1000; box-shadow: 0 4px 10px rgba(0,0,0,0.3); font-size: 0.8rem; color: #333;">
+            <b style="display:block; margin-bottom: 8px;">คลาดเคลื่อน (ม)</b>
+            
+                <div style="display:flex; align-items:center; margin-bottom:4px;">
+                   <i style="width:15px; height:15px; background:#8b0000; display:inline-block; margin-right:8px; border-radius:50%;"></i> 
+                   > 2.0 ม. (มาก)</div>
+                   
+                <div style="display:flex; align-items:center; margin-bottom:4px;">
+                   <i style="width:15px; height:15px; background:#ff0000; display:inline-block; margin-right:8px; border-radius:50%;"></i> 
+                   0.5 - 2.0 ม. (ปานกลาง)</div>
+                   
+                <div style="display:flex; align-items:center; margin-bottom:4px;">
+                   <i style="width:15px; height:15px; background:#ffa500; display:inline-block; margin-right:8px; border-radius:50%;"></i> 
+                   < 0.50 ม. (น้อย)</div>
+            </div>
+            
+            <div style="position: absolute; bottom: 30px; left: 20px; background: white; padding: 12px; border-radius: 8px; z-index: 1000; box-shadow: 0 4px 10px rgba(0,0,0,0.3); font-size: 0.8rem; color: #333;">
+            <b style="display:block; margin-bottom: 8px;">ความสูง (ม)</b>
+            
+                <div style="display:flex; align-items:center; margin-bottom:4px;">
+                   <i style="width:15px; height:15px; background:#9e0000; display:inline-block; margin-right:8px; border-radius:50%;"></i>10.0</div>
+                   
+                <div style="display:flex; align-items:center; margin-bottom:4px;">
+                   <i style="width:15px; height:15px; background:#9e0000; display:inline-block; margin-right:8px; border-radius:50%;"></i>9.5</div>
+                   
+                <div style="display:flex; align-items:center; margin-bottom:4px;">
+                   <i style="width:15px; height:15px; background:#d50000; display:inline-block; margin-right:8px; border-radius:50%;"></i>9.0</div>
+                
+                <div style="display:flex; align-items:center; margin-bottom:4px;">
+                   <i style="width:15px; height:15px; background:#ff0000; display:inline-block; margin-right:8px; border-radius:50%;"></i>8.5</div>
+                
+                <div style="display:flex; align-items:center; margin-bottom:4px;">
+                   <i style="width:15px; height:15px; background:#ff4800; display:inline-block; margin-right:8px; border-radius:50%;"></i>8.0</div>
+                
+                <div style="display:flex; align-items:center; margin-bottom:4px;">
+                   <i style="width:15px; height:15px; background:#ff4800; display:inline-block; margin-right:8px; border-radius:50%;"></i>7.5</div>
+                
+                <div style="display:flex; align-items:center; margin-bottom:4px;">
+                   <i style="width:15px; height:15px; background:#ff9000; display:inline-block; margin-right:8px; border-radius:50%;"></i>7.0</div>
+                   
+                <div style="display:flex; align-items:center; margin-bottom:4px;">
+                   <i style="width:15px; height:15px; background:#ffc400; display:inline-block; margin-right:8px; border-radius:50%;"></i>6.5</div>
+                   
+                <div style="display:flex; align-items:center; margin-bottom:4px;">
+                   <i style="width:15px; height:15px; background:#ffeb00; display:inline-block; margin-right:8px; border-radius:50%;"></i>6.0</div>
+                 
+                <div style="display:flex; align-items:center; margin-bottom:4px;">
+                   <i style="width:15px; height:15px; background:#fffe47; display:inline-block; margin-right:8px; border-radius:50%;"></i>5.5</div>
+                   
+                <div style="display:flex; align-items:center; margin-bottom:4px;">
+                   <i style="width:15px; height:15px; background:#fffe47; display:inline-block; margin-right:8px; border-radius:50%;"></i>5.0</div>
+                   
+                <div style="display:flex; align-items:center; margin-bottom:4px;">
+                   <i style="width:15px; height:15px; background:#ceffff; display:inline-block; margin-right:8px; border-radius:50%;"></i>4.5</div>
+                   
+                <div style="display:flex; align-items:center; margin-bottom:4px;">
+                   <i style="width:15px; height:15px; background:#aff5ff; display:inline-block; margin-right:8px; border-radius:50%;"></i>4.0</div>
+                   
+                <div style="display:flex; align-items:center; margin-bottom:4px;">
+                   <i style="width:15px; height:15px; background:#9ceeff; display:inline-block; margin-right:8px; border-radius:50%;"></i>3.5</div>
+                   
+                <div style="display:flex; align-items:center; margin-bottom:4px;">
+                   <i style="width:15px; height:15px; background:#86d9ff; display:inline-block; margin-right:8px; border-radius:50%;"></i>3.0</div>
+                   
+                <div style="display:flex; align-items:center; margin-bottom:4px;">
+                   <i style="width:15px; height:15px; background:#86d9ff; display:inline-block; margin-right:8px; border-radius:50%;"></i>2.5</div>
+                
+                <div style="display:flex; align-items:center; margin-bottom:4px;">
+                   <i style="width:15px; height:15px; background:#6dc1ff; display:inline-block; margin-right:8px; border-radius:50%;"></i>2.0</div>
+                   
+                <div style="display:flex; align-items:center; margin-bottom:4px;">
+                   <i style="width:15px; height:15px; background:#4196ff; display:inline-block; margin-right:8px; border-radius:50%;"></i>1.5</div>
+                   
+                <div style="display:flex; align-items:center; margin-bottom:4px;">
+                   <i style="width:15px; height:15px; background:#2050ff; display:inline-block; margin-right:8px; border-radius:50%;"></i>1.0</div>
+                   
+                <div style="display:flex; align-items:center; margin-bottom:4px;">
+                   <i style="width:15px; height:15px; background:#040ed8; display:inline-block; margin-right:8px; border-radius:50%;"></i>0.5</div>
+                   
+                <div style="display:flex; align-items:center; margin-bottom:4px;">
+                   <i style="width:15px; height:15px; background:#040ed8; display:inline-block; margin-right:8px; border-radius:50%;"></i>0.0</div>
+                   
+            </div>
+            
+        </div>
+
+        <!-- ===== TAB 3: SCATTER ===== -->
+        <div id="tab-scatter" class="tab-panel">
+            <canvas id="scatterChart"></canvas>
+
+            <div id="metrics-box" style="
+                position:absolute;
+                top:20px;
+                right:150px;
+                background:white;
+                padding:15px;
+                border-radius:8px;
+                box-shadow:0 4px 10px rgba(0,0,0,0.3);
+                font-size:1.5rem;
+            "></div>
+        </div>
+
+    </div>
+</section>
+
+    <section id="page2" class="page-content">
+        <aside class="sidebar">
+            <div class="tab-container">
+                <button class="tab-btn active" onclick="switchSubTab('risk')">แผนที่ความเสี่ยง</button>
+                <button class="tab-btn" onclick="switchSubTab('scenario')">ฉากทัศน์น้ำล้นคันฯที่ N.1</button>
+            </div>
+
+            <div id="risk-panel" class="tab-panel active">
+                <div class="control-group">
+                    <span class="label">🗓️ คาบปีการเกิด (Return Period)</span>
+                    <div class="btn-grid">
+                        <button class="btn active" onclick="updateMap2('rp', '010', this)">10 ปี</button>
+                        <button class="btn" onclick="updateMap2('rp', '025', this)">25 ปี</button>
+                        <button class="btn" onclick="updateMap2('rp', '050', this)">50 ปี</button>
+                        <button class="btn" onclick="updateMap2('rp', '100', this)">100 ปี</button>
+                        <button class="btn" onclick="updateMap2('rp', '200', this)">200 ปี</button>
+                        <button class="btn" onclick="updateMap2('rp', '500', this)">500 ปี</button>
+                    </div>
+                </div>
+                <div class="control-group">
+                    <span class="label">📏 ความเสี่ยงน้ำท่วม (Depth)</span>
+                    <div class="btn-grid">
+                        <button class="btn" onclick="updateMap2('depth', '030', this)">0.3 เมตร</button>
+                        <button class="btn" onclick="updateMap2('depth', '050', this)">0.5 เมตร</button>
+                        <button class="btn" onclick="updateMap2('depth', '100', this)">1.0 เมตร</button>
+                        <button class="btn" onclick="updateMap2('depth', '150', this)">1.5 เมตร</button>
+                        <button class="btn" onclick="updateMap2('depth', '300', this)">3.0 เมตร</button>
+                        <button class="btn" onclick="updateMap2('depth', '500', this)">5.0 เมตร</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="scenario-panel" class="tab-panel">
+                <div class="control-group">
+                    <span class="label">📏 ความสูงน้ำล้นคันฯ (เมตร)</span>
+                    <div class="btn-grid">
+                        <button class="btn active" onclick="updateMapScenario('h', '010', this)">0.10 ม.</button>
+                        <button class="btn" onclick="updateMapScenario('h', '025', this)">0.25 ม.</button>
+                        <button class="btn" onclick="updateMapScenario('h', '050', this)">0.50 ม.</button>
+                        <button class="btn" onclick="updateMapScenario('h', '075', this)">0.75 ม.</button>
+                        <button class="btn" onclick="updateMapScenario('h', '100', this)">1.00 ม.</button>
+                        <button class="btn" onclick="updateMapScenario('h', '125', this)">1.25 ม.</button>
+                        <button class="btn" onclick="updateMapScenario('h', '150', this)">1.50 ม.</button>
+                    </div>
+                </div>
+                <div class="control-group">
+                    <span class="label">⏱️ ระยะเวลาน้ำล้นฯ (ชั่วโมง)</span>
+                    <div class="btn-grid">
+                        <button class="btn active" onclick="updateMapScenario('t', '1', this)">1 ชม.</button>
+                        <button class="btn" onclick="updateMapScenario('t', '5', this)">5 ชม.</button>
+                        <button class="btn" onclick="updateMapScenario('t', '10', this)">10 ชม.</button>
+                        <button class="btn" onclick="updateMapScenario('t', '15', this)">15 ชม.</button>
+                        <button class="btn" onclick="updateMapScenario('t', '20', this)">20 ชม.</button>
+                        <button class="btn" onclick="updateMapScenario('t', '30', this)">30 ชม.</button>
+                        <button class="btn" onclick="updateMapScenario('t', '40', this)">40 ชม.</button>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <div class="main-view">
+            <div id="map-merged" class="leaflet-map-container"></div>
+            <div class="map-info" id="map-status-p2">Layer: TR_010y.png</div>
+            <div id="legend-p2" class="flood-legend">
+                <div id="legend-title-p2" class="legend-title">ความลึก (ม.)</div>
+                <div id="legend-content-p2" class="legend-scale"></div>
+            </div>
+        </div>
+    </section>
+
+    <section id="page4" class="page-content">
+        <aside class="sidebar">
+            <h3 style="border-bottom: 1px solid #444; padding-bottom: 10px;">📏 วิเคราะห์ระดับน้ำ</h3>
+            <div class="control-group">
+                <span class="label">📍 เลือกเกณฑ์อ้างอิงระดับน้ำ</span>
+                <div class="btn-grid">
+                    <button class="btn active" id="mode-n1-btn" onclick="setRefMode('N1')">ระดับสมมุติ N.1</button>
+                    <button class="btn" id="mode-msl-btn" onclick="setRefMode('MSL')">ระดับน้ำทะเล (MSL)</button>
+                </div>
+            </div>
+            <div class="control-group">
+                <span class="label">⌨️ ระบุระดับน้ำที่ต้องการจำลอง (เมตร)</span>
+                <input type="number" id="water-input" step="0.01" value="9.00" style="width: 100%; padding: 12px; border-radius: 4px; border: none; font-size: 1.2rem; text-align: center; font-weight: bold;">
+                <button class="btn active" style="width: 100%; margin-top: 10px; background: var(--blue);" onclick="calculateFlood()">คำนวณระดับน้ำท่วม</button>
+            </div>
+            <div id="summary-box" style="margin-top: auto; padding: 15px; background: rgba(0,0,0,0.3); border-radius: 8px; font-size: 0.85rem;">
+                <div style="display: flex; justify-content: space-between;">
+                     <span>จุดทั้งหมด:</span> <span id="total-points">0</span></div>
+            <div style="display: flex; justify-content: space-between; color: #ff4d4d;">
+                <span>จุดที่น้ำท่วม (> 3.0 ม.):</span> <span id="flooded-points-300">0</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; color: #ff4d4d;">
+                <span>จุดที่น้ำท่วม (1.5-3.0 ม.):</span> <span id="flooded-points-150">0</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; color: #ff4d4d;">
+                <span>จุดที่น้ำท่วม (1.0-1.5 ม.):</span> <span id="flooded-points-100">0</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; color: #ff4d4d;">
+                <span>จุดที่น้ำท่วม (0.3-1.0 ม.):</span> <span id="flooded-points-030">0</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; color: #ff4d4d;">
+                <span>จุดที่น้ำท่วม (< 0.3 ม.):</span> <span id="flooded-points-000">0</span>
+            </div>
+            </div>
+        </aside>
+        <div class="main-view">
+            <div id="map-calc" class="leaflet-map-container"></div>
+            
+            <div style="position: absolute; bottom: 30px; left: 20px; background: white; padding: 12px; border-radius: 8px; z-index: 1000; box-shadow: 0 4px 10px rgba(0,0,0,0.3); font-size: 0.8rem; color: #333;">
+            <b style="display:block; margin-bottom: 8px;">ความรุนแรงน้ำท่วม</b>
+            
+            <div style="display:flex; align-items:center; margin-bottom:4px;">
+               <i style="width:15px; height:15px; background:#8b0000; display:inline-block; margin-right:8px; border-radius:50%;"></i> 
+               > 3.0 ม. (รุนแรงมาก)</div>
+               
+            <div style="display:flex; align-items:center; margin-bottom:4px;">
+               <i style="width:15px; height:15px; background:#ff0000; display:inline-block; margin-right:8px; border-radius:50%;"></i> 
+               1.5 - 3.0 ม. (รุนแรง)</div>
+               
+            <div style="display:flex; align-items:center; margin-bottom:4px;">
+               <i style="width:15px; height:15px; background:#ffa500; display:inline-block; margin-right:8px; border-radius:50%;"></i> 
+               1.0 - 1.5 ม. (ปานกลาง)</div>
+               
+            <div style="display:flex; align-items:center; margin-bottom:4px;">
+               <i style="width:15px; height:15px; background:#ffff00; display:inline-block; margin-right:8px; border-radius:50%; border:1px solid #ccc;"></i> 
+               0.3 - 1.0 ม. (น้อย)</div>
+               
+            <div style="display:flex; align-items:center;">
+               <i style="width:15px; height:15px; background:#00ff00; display:inline-block; margin-right:8px; border-radius:50%;"></i> 
+               < 0.30 ม. (ไม่รุนแรง)</div>
+        </div>
+            
+        </div>
+    </section>
+    
+<section id="page5" class="page-content">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+        <h3>🏠 การประเมินความเสียหายอาคารเบื้องต้น</h3>
+
+        <!-- KPI -->
+        <!-- <div class="control-group"> -->
+            <!-- <!-- <span class="label">🚨 Key Indicators</span> -->
+            <!-- <div id="kpi-box"></div> -->
+        <!-- </div> -->
+
+        <!-- FILTER -->
+        <div class="control-group">
+            <span class="label">🎛️ Filter ความเสียหาย</span>
+
+            <label><input type="checkbox" value="รุนแรงน้อยมาก" checked> รุนแรงน้อยมาก</label><br>
+            <label><input type="checkbox" value="รุนแรงน้อย" checked> รุนแรงน้อย</label><br>
+            <label><input type="checkbox" value="รุนแรงปานกลาง" checked> รุนแรงปานกลาง</label><br>
+            <label><input type="checkbox" value="รุนแรง" checked> รุนแรง</label><br>
+            <label><input type="checkbox" value="รุนแรงมาก" checked> รุนแรงมาก</label>
+        </div>
+
+        <!-- COST INPUT -->
+        <div class="control-group">
+            <span class="label">💰 ราคาค่าก่อสร้าง (บาท/ตร.ม.)</span>
+            <input type="number" id="cost-per-m2" value="5000" style="width:100%;">
+        </div>
+
+        <!-- SUMMARY -->
+        <div class="control-group">
+            <span class="label">📊 จำนวนอาคารที่ได้รับความเสียหาย</span>
+            <div id="damage-summary"></div>
+        </div>
+
+        <!-- DAMAGE COST -->
+        <div class="control-group">
+            <span class="label">💸 มูลค่าความเสียหาย</span>
+            <div id="damage-cost-summary"></div>
+        </div>
+
+        <!-- CHART COUNT -->
+        <div class="control-group" style="height:180px;">
+            <canvas id="damageChart"></canvas>
+        </div>
+
+        <!-- CHART COST -->
+        <div class="control-group" style="height:180px;">
+            <canvas id="damageCostChart"></canvas>
+        </div>
+
+        <!-- LEGEND -->
+        <div class="control-group">
+            <span class="label">สัญลักษณ์</span>
+            🟢 น้อยมาก (&lt;0.2)<br>
+            🟡 น้อย (0.2–0.5)<br>
+            🟠 ปานกลาง (0.5–1.0)<br>
+            🔴 รุนแรง (1–2)<br>
+            🟥 รุนแรงมาก (&gt;2)
+        </div>
+    </aside>
+
+    <!-- MAP -->
+    <div class="main-view">
+        <div id="map-building" class="leaflet-map-container"></div>
+    </div>
+
+    <!-- WARNING -->
+    <div id="warning-banner"></div>
+
+</section>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+        var imageBounds = [[18.74969577, 100.7501915], [18.81643900, 100.8059337]];
+        var map2, map4, overlay2, pointLayer;
+        var p2RP = "010", p2Depth = "030", p3H = "010", p3T = "1";
+        var currentMode = 'risk'; // 'risk' or 'scenario'
+        var map5, buildingLayer;
+
+        function getBaseLayers() {
+            return {
+                "แผนที่ถนน (OSM)": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; OpenStreetMap, &copy; Kwanchai Pakoksung, D.Eng'
+                }),
+                "ดาวเทียม (Google)": L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+                    attribution: '&copy; Google Maps, &copy; Kwanchai Pakoksung, D.Eng'
+                }),
+                "ดาวเทียม (Esri)": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                    attribution: 'Tiles &copy; Esri, &copy; Kwanchai Pakoksung, D.Eng'
+                })
+            };
+        }
+
+        function showPage(pageId) {
+            document.querySelectorAll('.page-content').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.nav-link').forEach(n => n.classList.remove('active'));
+            document.getElementById(pageId).classList.add('active');
+            event.currentTarget.classList.add('active');
+            
+            if(pageId === 'page2') {
+                if(!map2) initMap2();
+                setTimeout(() => map2.invalidateSize(), 200);
+            }
+            if(pageId === 'page4') {
+                if(!map4) initMap4();
+                setTimeout(() => map4.invalidateSize(), 200);
+            }
+            if(pageId === 'page5') {
+                if(!map5) initMap5();
+                setTimeout(() => map5.invalidateSize(), 200);
+            }
+            
+        }
+
+        function switchSubTab(mode) {
+            currentMode = mode;
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+            event.currentTarget.classList.add('active');
+            document.getElementById(mode + '-panel').classList.add('active');
+            
+            // Refresh Map based on current selections
+            if(mode === 'risk') updateMap2('rp', p2RP);
+            else updateMapScenario('h', p3H);
+        }
+
+        function initMap2() {
+            var bases = getBaseLayers();
+            map2 = L.map('map-merged', { layers: [bases["แผนที่ถนน (OSM)"]] }).setView([18.783, 100.775], 15);
+            L.control.layers(bases).addTo(map2);
+            updateMap2('rp', '010');
+        }
+
+        function updateMap2(type, val, btn) {
+            if (btn) {
+                btn.parentElement.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            }
+            if (type === 'rp') p2RP = val; else p2Depth = val;
+
+            let fileName = (type === 'rp') ? `TR_${p2RP}y.png` : `Prob_${p2Depth}m.png`;
+            if (overlay2) map2.removeLayer(overlay2);
+            overlay2 = L.imageOverlay(fileName, imageBounds, { opacity: 0.7 }).addTo(map2);
+            document.getElementById('map-status-p2').innerText = `แสดงไฟล์: ${fileName}`;
+            updateLegend(type);
+        }
+
+        function updateMapScenario(type, val, btn) {
+            if (btn) {
+                btn.parentElement.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            }
+            if (type === 'h') p3H = val; else p3T = val;
+
+            let fileName = `N1_H${p3H}_T${p3T}.png`;
+            if (overlay2) map2.removeLayer(overlay2);
+            overlay2 = L.imageOverlay(fileName, imageBounds, { opacity: 0.7 }).addTo(map2);
+            document.getElementById('map-status-p2').innerText = `แสดงไฟล์: ${fileName}`;
+            updateLegend('scenario');
+        }
+
+        function updateLegend(mode) {
+            const title = document.getElementById('legend-title-p2');
+            const content = document.getElementById('legend-content-p2');
+            <!-- if(mode === 'rp' || mode === 'scenario') { -->
+            if(mode === 'rp') {
+                title.innerText = "ความลึก (ม.)";
+                content.innerHTML = '<div class="legend-item"><div class="color-box" style="background:#30123b"></div>  1.0</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#3b3183"></div>  2.0</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#424eba"></div>  3.0</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#466be2"></div>  4.0</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#4586f9"></div>  5.0</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#3aa1fb"></div>  6.0</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#29bbeb"></div>  7.0</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#1cd2d1"></div>  8.0</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#1de5b5"></div>  9.0</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#33f297"></div> 10.0</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#59fb74"></div> 11.0</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#81fe53"></div> 12.0</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#a3fc3d"></div> 13.0</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#c0f335"></div> 14.0</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#d9e336"></div> 15.0</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#edcf39"></div> 16.0</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#f9b837"></div> 17.0</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#fd9d2e"></div> 18.0</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#fa7e21"></div> 19.0</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#f15f14"></div> 20.0</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#e3450a"></div> 21.0</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#d02f05"></div> 22.0</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#b71d01"></div> 23.0</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#9a0f01"></div> 24.0</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#7a0403"></div> 25.0</div>'
+                                    ;
+            } else if (mode === 'scenario') {
+                title.innerText = "ความลึก (ม.)";
+                content.innerHTML = '<div class="legend-item"><div class="color-box" style="background:#040ed8"></div>  0.0</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#040ed8"></div>  0.5</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#2050ff"></div>  1.0</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#4196ff"></div>  1.5</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#6dc1ff"></div>  2.0</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#86d9ff"></div>  2.5</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#86d9ff"></div>  3.0</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#9ceeff"></div>  3.5</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#aff5ff"></div>  4.0</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#ceffff"></div>  4.5</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#fffe47"></div>  5.0</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#fffe47"></div>  5.5</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#ffeb00"></div>  6.0</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#ffc400"></div>  6.5</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#ff9000"></div>  7.0</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#ff4800"></div>  7.5</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#ff4800"></div>  8.0</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#ff0000"></div>  8.5</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#d50000"></div>  9.0</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#9e0000"></div>  9.5</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#9e0000"></div> 10.0</div>'
+                                    ;            
+            } else {
+                title.innerText = "โอกาสท่วม (เมตร)";
+                content.innerHTML = '<div class="legend-item"><div class="color-box" style="background:#9e0000"></div>2</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#d50000"></div>4</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#ff4800"></div>6</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#ffc400"></div>8</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#fffe47"></div>10</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#ceffff"></div>12</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#9ceeff"></div>14</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#6dc1ff"></div>16</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#2050ff"></div>18</div>' +
+                                    '<div class="legend-item"><div class="color-box" style="background:#040ed8"></div>20</div>';
+            }
+        }
+
+        // --- Logic for Page 3 (Original Page 4) ---
+        const pointsData = [ 
+                              {id:1, x:100.7905, y:18.7963, elev:201.84, n1:9.64},
+                              {id:2, x:100.7928, y:18.8016, elev:197.54, n1:5.34},
+                              {id:3, x:100.7901, y:18.7929, elev:201.75, n1:9.55},
+                              {id:4, x:100.7839, y:18.7875, elev:201.1, n1:8.9},
+                              {id:5, x:100.7865, y:18.7841, elev:199.17, n1:6.97},
+                              {id:6, x:100.7764, y:18.7797, elev:199.31, n1:7.11},                  
+                              {id:7, x:100.7854, y:18.7826, elev:197.85, n1:5.65},
+                              {id:8, x:100.7813, y:18.7776, elev:198.31, n1:6.11},
+                              {id:9, x:100.779, y:18.7755, elev:198.05, n1:5.85},
+                              {id:10, x:100.7735, y:18.7778, elev:199.26, n1:7.06},
+                              {id:11, x:100.7718, y:18.7755, elev:200.12, n1:7.92},
+                              {id:12, x:100.7691, y:18.7753, elev:199.39, n1:7.19},
+                              {id:13, x:100.7635, y:18.7748, elev:199.09, n1:6.89},
+                              {id:14, x:100.7721, y:18.7718, elev:197.09, n1:4.89},
+                              {id:15, x:100.7726, y:18.7679, elev:197.82, n1:5.62},
+                              {id:16, x:100.773, y:18.7644, elev:197.77, n1:5.57},
+                              {id:17, x:100.7815, y:18.7704, elev:198.25, n1:6.05},
+                              {id:18, x:100.7799, y:18.7744, elev:197.27, n1:5.07},
+                              {id:19, x:100.7817, y:18.7757, elev:193.66, n1:1.46},
+                              {id:20, x:100.7841, y:18.7782, elev:197.44, n1:5.24},
+                              {id:21, x:100.7813, y:18.7811, elev:198.03, n1:5.83},
+                              {id:22, x:100.7761, y:18.7768, elev:198.62, n1:6.42},
+                              {id:23, x:100.7676, y:18.7717, elev:197.46, n1:5.26},
+                              {id:24, x:100.7862, y:18.7889, elev:201.79, n1:9.59},
+                              {id:25, x:100.7875, y:18.7866, elev:200.39, n1:8.19},
+                              {id:26, x:100.7938, y:18.8057, elev:201.68, n1:9.48},
+                              {id:27, x:100.7984, y:18.8055, elev:204.14, n1:11.94},
+                              {id:28, x:100.7924, y:18.7947, elev:199.86, n1:7.66},
+                              {id:29, x:100.7845, y:18.7766, elev:200.52, n1:8.32},
+                              {id:30, x:100.7753, y:18.7533, elev:197.55, n1:5.35},
+                              {id:31, x:100.7694, y:18.765, elev:197.96, n1:5.76},
+                              {id:32, x:100.7733, y:18.7558, elev:197.43, n1:5.23} 
+                            ]; // Shortened for sample
+        let refMode = 'N1';
+
+        function initMap4() {
+            var bases = getBaseLayers();
+            map4 = L.map('map-calc', { layers: [bases["แผนที่ถนน (OSM)"]] }).setView([18.783, 100.775], 15);
+            L.control.layers(bases).addTo(map4);
+            pointLayer = L.layerGroup().addTo(map4);
+            calculateFlood();
+        }
+
+        function setRefMode(mode) {
+            refMode = mode;
+            document.getElementById('mode-n1-btn').classList.toggle('active', mode === 'N1');
+            document.getElementById('mode-msl-btn').classList.toggle('active', mode === 'MSL');
+            document.getElementById('water-input').value = (mode === 'N1') ? "9.00" : "201.00";
+            calculateFlood();
+        }
+
+        function getColor(depth) {
+            if (depth > 3.0) return '#8b0000'; 
+            if (depth > 1.5) return '#ff0000'; 
+            if (depth > 1.0) return '#ffa500'; 
+            if (depth > 0.3) return '#ffff00'; 
+                             return '#00ff00'; 
+        }
+
+        function calculateFlood() {
+            const inputVal = parseFloat(document.getElementById('water-input').value);
+            if(pointLayer) pointLayer.clearLayers();
+            
+              let floodCount000 = 0;
+              let floodCount030 = 0;
+              let floodCount100 = 0;
+              let floodCount150 = 0;
+              let floodCount300 = 0;
+            
+            pointsData.forEach(pt => {
+                const ground = (refMode === 'N1') ? pt.n1 : pt.elev;
+                const depth = Math.max(0, inputVal - ground);
+
+                  if (depth <= 0.3) floodCount000++;
+                  if (depth > 0.3 && depth <= 1.0) floodCount030++;
+                  if (depth > 1.0 && depth <= 1.5) floodCount100++;
+                  if (depth > 1.5 && depth <= 3.0) floodCount150++;
+                  if (depth > 3.0) floodCount300++;
+                
+                L.circleMarker([pt.y, pt.x], { 
+                                              radius: 14, 
+                                              fillColor: getColor(depth), 
+                                              color: '#fff', 
+                                              fillOpacity: 0.7 
+                                             })
+                 .bindPopup(`
+                            <div style="font-family:Sarabun">
+                            <b>จุดอ้างอิง ID: ${pt.id}</b><br>
+                             พื้นดิน (MSL): ${pt.elev} ม.<br>
+                             พื้นดิน (N1): ${pt.n1} ม.<br><hr>
+                             <b>ความลึกน้ำท่วม: 
+                                <span style="color:red; font-size:1.1rem;">${depth.toFixed(2)} ม.</span>
+                             </b>
+                </div>
+            `).addTo(pointLayer);
+        });
+            document.getElementById('total-points').innerText = pointsData.length;
+              document.getElementById('flooded-points-000').innerText = floodCount000;
+              document.getElementById('flooded-points-030').innerText = floodCount030;
+              document.getElementById('flooded-points-100').innerText = floodCount100;
+              document.getElementById('flooded-points-150').innerText = floodCount150;
+              document.getElementById('flooded-points-300').innerText = floodCount300;
+        }
+        
+
+
+var mapPage1 = null;
+var surveyLayer = null;
+var chartCreated = false;
+
+function switchPage1Tab(tab) {
+
+    document.querySelectorAll('#page1 .tab-btn')
+        .forEach(b => b.classList.remove('active'));
+
+    document.querySelectorAll('#page1 .tab-panel')
+        .forEach(p => p.classList.remove('active'));
+
+    event.currentTarget.classList.add('active');
+    document.getElementById('tab-' + tab).classList.add('active');
+
+    if (tab === 'map') {
+        if (!mapPage1) {
+            setTimeout(initMapPage1, 200);
+        } else {
+            setTimeout(() => mapPage1.invalidateSize(), 200);
+        }
+    }
+
+    if (tab === 'scatter') {
+        setTimeout(() => {
+            if (!chartCreated) initScatter();
+        }, 200);
+    }
+}
+
+function getColorError(error) {
+            if (error <= 0.5)                return '#ffa500'; 
+            if (error > 0.5 && error <= 2.0) return '#ff0000'; 
+            if (error > 2.0)                 return '#8b0000'; 
+        }
+
+function initMapPage1() {
+
+    <!-- mapPage1 = L.map('map-page1') -->
+        <!-- .setView([18.783, 100.775], 15); -->
+
+    <!-- L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}') -->
+        <!-- .addTo(mapPage1); -->
+    
+    var bases = getBaseLayers();
+    mapPage1 = L.map('map-page1', { layers: [bases["แผนที่ถนน (OSM)"]] }).setView([18.783, 100.775], 15);
+    L.control.layers(bases).addTo(mapPage1);
+
+    L.imageOverlay('Sim_Flood_Nan_All_Max.png', imageBounds, {
+        opacity: 0.7
+    }).addTo(mapPage1);
+
+    Papa.parse('Flood_mark_Obs-Sim.csv', {
+        download: true,
+        header: true,
+        complete: function(results) {
+
+            surveyLayer = L.layerGroup().addTo(mapPage1);
+
+            results.data.forEach(d => {
+
+                let x = parseFloat(d.x);
+                let y = parseFloat(d.y);
+                let obs = parseFloat(d.Obs);
+                let sim = parseFloat(d.Sim);
+
+                if (!isNaN(x) && !isNaN(y)) {
+
+                    let error = Math.abs(sim - obs);
+
+                    L.circleMarker([y, x], {
+                        <!-- radius: error > 1 ? 7 : 4, -->
+                        <!-- fillColor: error > 1 ? "red" : "yellow", -->
+                        <!-- color: "#000", -->
+                        <!-- fillOpacity: 0.9 -->
+                        radius: 14, 
+                        fillColor: getColorError(error), 
+                        color: '#000', 
+                        fillOpacity: 0.9 
+                    })
+                    .bindPopup(`
+                        <b>จุดสำรวจน้ำท่วม</b><br>
+                        ข้อมูลสำรวจ: ${obs.toFixed(3)} m<br>
+                        ข้อมูลจำลอง: ${sim.toFixed(3)} m<br>
+                        คลาดเคลื่อน: ${error.toFixed(2)} m
+                    `)
+                    .addTo(surveyLayer);
+                }
+            });
+        }
+    });
+}
+
+function initScatter() {
+
+    Papa.parse('Flood_mark_Obs-Sim.csv', {
+        download: true,
+        header: true,
+        complete: function(results) {
+
+            let obs = [];
+            let sim = [];
+
+            results.data.forEach(d => {
+                let o = parseFloat(d.Obs);
+                let s = parseFloat(d.Sim);
+
+                if (!isNaN(o) && !isNaN(s)) {
+                    obs.push(o);
+                    sim.push(s);
+                }
+            });
+
+            let n = obs.length;
+
+            // ===== METRICS =====
+            let mse = obs.reduce((sum, o, i) =>
+                sum + Math.pow(sim[i] - o, 2), 0) / n;
+            let rmse = Math.sqrt(mse);
+
+            let meanObs = obs.reduce((a,b)=>a+b,0)/n;
+
+            let nse = 1 - (
+                obs.reduce((s,o,i)=>s+Math.pow(sim[i]-o,2),0) /
+                obs.reduce((s,o)=>s+Math.pow(o-meanObs,2),0)
+            );
+
+            let bias = sim.reduce((s,v,i)=>s+(v-obs[i]),0)/n;
+
+            // Kappa
+            let tp=0, tn=0, fp=0, fn=0;
+            for(let i=0;i<n;i++){
+                let o = obs[i] > 0.3;
+                let s = sim[i] > 0.3;
+
+                if(o && s) tp++;
+                else if(!o && !s) tn++;
+                else if(!o && s) fp++;
+                else fn++;
+            }
+
+            let po = (tp+tn)/n;
+            let pe = ((tp+fp)*(tp+fn)+(fn+tn)*(fp+tn))/(n*n);
+            let kappa = (po-pe)/(1-pe);
+
+            let maxVal = Math.max(...obs, ...sim);
+            let accuracy = (1 - rmse / maxVal) * 100;
+
+            // ===== CHART =====
+            new Chart(document.getElementById('scatterChart'), {
+                type: 'scatter',
+                data: {
+                    datasets: [
+                        {
+                            label: 'สำรวจ vs จำลอง',
+                            data: obs.map((o,i)=>{
+                                let error = Math.abs(sim[i]-o);
+                                return {
+                                    x:o,
+                                    y:sim[i],
+                                    backgroundColor: error > 1 ? 'red' : 'blue'
+                                };
+                            }),
+                            pointRadius: 11
+                        },
+                        {
+                            label: '1:1 Line',
+                            type: 'line',
+                            data: [{x:0,y:0},{x:maxVal,y:maxVal}],
+                            borderWidth: 3,
+                            fill: false,
+                            pointRadius: 0
+                        }
+                    ]
+                },
+options: {
+    responsive: true,
+    maintainAspectRatio: false,
+
+    plugins: {
+        legend: {
+            labels: {
+                font: { size: 40 }   // legend text
+            }
+        }
+    },
+
+    scales: {
+        x: {
+            title: {
+                display: true,
+                text: 'ความสูงน้ำท่วมสำรวจ (m)',
+                font: { size: 36 }   // 👉 X title size
+            },
+            ticks: {
+                font: { size: 24 }   // 👉 X tick size
+            }
+        },
+        y: {
+            title: {
+                display: true,
+                text: 'ความสูงน้ำท่วมจำลอง (m)',
+                font: { size: 36 }   // 👉 Y title size
+            },
+            ticks: {
+                font: { size: 24 }   // 👉 Y tick size
+            }
+        }
+    }
+}
+            });
+
+            // ===== SHOW METRICS =====
+            let html = `
+                <b>สัมประสิทธิ์ชี้วัดประสิทธิภาพของแบบจำลอง</b><br>
+                RMSE: ${rmse.toFixed(2)} m<br>
+                NSE: ${nse.toFixed(2)}<br>
+                <!-- Kappa: ${kappa.toFixed(2)}<br> -->
+                Bias: ${bias.toFixed(2)} m<br>
+                Accuracy: ${accuracy.toFixed(1)} %
+            `;
+
+            document.getElementById('metrics-box').innerHTML = html;
+            document.getElementById('metrics-summary').innerHTML = html;
+
+            chartCreated = true;
+        }
+    });
+}
+
+
+
+var map5, buildingLayer;
+var damageChart, damageCostChart;
+var allFeatures = [];
+
+// ===== CLASS =====
+function getSeverity(d) {
+    if (d < 0.3) return "รุนแรงน้อยมาก";
+    if (d < 1.0) return "รุนแรงน้อย";
+    if (d < 1.5) return "รุนแรงปานกลาง";
+    if (d < 3.0) return "รุนแรง";
+    return "รุนแรงมาก";
+}
+
+function getColor5(s) {
+    return {
+        "รุนแรงน้อยมาก": "#00ff00",
+        "รุนแรงน้อย": "#ffff00",
+        "รุนแรงปานกลาง": "#ffa500",
+        "รุนแรง": "#ff0000",
+        "รุนแรงมาก": "#8b0000"
+    }[s];
+}
+
+function getDamageRatio(s) {
+    return {
+        "รุนแรงน้อยมาก": 0.03,
+        "รุนแรงน้อย": 0.3,
+        "รุนแรงปานกลาง": 0.6,
+        "รุนแรง": 0.8,
+        "รุนแรงมาก": 1.0
+    }[s];
+}
+
+// ===== INIT =====
+function initMap5() {
+
+            var bases = getBaseLayers();
+
+            map5 = L.map('map-building', {
+                layers: [bases["แผนที่ถนน (OSM)"]]
+            }).setView([18.783, 100.775], 16);
+
+            L.control.layers(bases).addTo(map5);
+
+    fetch('Nan_Building_Damage.geojson')
+        .then(res => res.json())
+        .then(data => {
+            allFeatures = data.features;
+            drawBuildings();
+        });
+}
+
+// ===== MAIN FUNCTION =====
+function drawBuildings() {
+
+    if (buildingLayer) map5.removeLayer(buildingLayer);
+
+    let selected = Array.from(
+        document.querySelectorAll('#page5 input[type=checkbox]:checked')
+    ).map(el => el.value);
+
+    let costPerM2 = parseFloat(
+        document.getElementById('cost-per-m2').value || 0
+    );
+
+    let summary = {
+        "รุนแรงน้อยมาก": 0,
+        "รุนแรงน้อย": 0,
+        "รุนแรงปานกลาง": 0,
+        "รุนแรง": 0,
+        "รุนแรงมาก": 0
+    };
+
+    let damageCost = {
+        "รุนแรงน้อยมาก": 0,
+        "รุนแรงน้อย": 0,
+        "รุนแรงปานกลาง": 0,
+        "รุนแรง": 0,
+        "รุนแรงมาก": 0
+    };
+
+    buildingLayer = L.geoJSON(allFeatures, {
+
+        filter: function(f) {
+            let s = getSeverity(f.properties._max || 0);
+            return selected.includes(s);
+        },
+
+        style: function(f) {
+
+            let d = f.properties._max || 0;
+            let s = getSeverity(d);
+            let area = f.properties.area || 0;
+
+            summary[s]++;
+
+            let cost = area * costPerM2 * getDamageRatio(s);
+            damageCost[s] += cost;
+
+            return {
+                color: "#222",
+                weight: 0.5,
+                fillColor: getColor5(s),
+                fillOpacity: 0.8
+            };
+        },
+
+        onEachFeature: function(f, layer) {
+            let d = f.properties._max || 0;
+            let s = getSeverity(d);
+            let area = f.properties.area || 0;
+
+            layer.bindPopup(`
+                Depth: ${d.toFixed(2)} m<br>
+                Area: ${area.toFixed(1)} m²<br>
+                Severity: ${s}
+            `);
+        }
+
+    }).addTo(map5);
+
+    map5.fitBounds(buildingLayer.getBounds());
+
+    updateSummary(summary);
+    updateDamageCost(damageCost);
+    updateChart(summary);
+    updateCostChart(damageCost);
+    <!-- updateKPI(summary); -->
+    <!-- updateWarning(summary); -->
+}
+
+// ===== UI UPDATE =====
+function updateSummary(s) {
+    document.getElementById('damage-summary').innerHTML = `
+    🟢 รุนแรงน้อยมาก: ${s["รุนแรงน้อยมาก"]}<br>
+    🟡 รุนแรงน้อย: ${s["รุนแรงน้อย"]}<br>
+    🟠 รุนแรงปานกลาง: ${s["รุนแรงปานกลาง"]}<br>
+    🔴 รุนแรง: ${s["รุนแรง"]}<br>
+    🟥 รุนแรงมาก: ${s["รุนแรงมาก"]}
+    `;
+}
+
+function updateDamageCost(dc) {
+    let f = x => (x / 1e6).toLocaleString(undefined, {maximumFractionDigits: 2});
+
+    document.getElementById('damage-cost-summary').innerHTML = `
+    🟢 รุนแรงน้อยมาก: ${f(dc["รุนแรงน้อยมาก"])} ล้านบาท<br>
+    🟡 รุนแรงน้อย: ${f(dc["รุนแรงน้อย"])} ล้านบาท<br>
+    🟠 รุนแรงปานกลาง: ${f(dc["รุนแรงปานกลาง"])} ล้านบาท<br>
+    🔴 รุนแรง: ${f(dc["รุนแรง"])} ล้านบาท<br>
+    🟥 รุนแรงมาก: ${f(dc["รุนแรงมาก"])} ล้านบาท
+    `;
+}
+
+// ===== CHART =====
+function updateChart(s) {
+
+    let data = Object.values(s);
+
+    if (damageChart) {
+        damageChart.data.datasets[0].data = data;
+        damageChart.update();
+        return;
+    }
+
+    damageChart = new Chart(document.getElementById('damageChart'), {
+        type: 'bar',
+        data: {
+            labels: ['น้อยมาก','น้อย','ปานกลาง','รุนแรง','มาก'],
+            datasets: [{ label: 'อาคาร', data: data }]
+        },
+        options: { responsive: true, maintainAspectRatio: false }
+    });
+}
+
+function updateCostChart(dc) {
+
+    let data = Object.values(dc).map(v => v / 1e6);
+
+    if (damageCostChart) {
+        damageCostChart.data.datasets[0].data = data;
+        damageCostChart.update();
+        return;
+    }
+
+    damageCostChart = new Chart(document.getElementById('damageCostChart'), {
+        type: 'bar',
+        data: {
+            labels: ['น้อยมาก','น้อย','ปานกลาง','รุนแรง','มาก'],
+            datasets: [{ 
+                        label: 'มูลค่าความเสียหาย (ล้านบาท)', 
+                        data: data 
+                      }]
+        },
+        options: { responsive: true, maintainAspectRatio: false }
+    });
+    let totalCost = Object.values(dc).reduce((a,b)=>a+b,0);
+
+document.getElementById('kpi-box').innerHTML += `
+<br>💰 ความเสียหายรวม: ${(totalCost/1e6).toLocaleString('th-TH',{maximumFractionDigits:2})} ล้านบาท
+`;
+}
+
+// ===== KPI =====
+function updateKPI(s) {
+    let total = Object.values(s).reduce((a,b)=>a+b,0);
+
+    document.getElementById('kpi-box').innerHTML = `
+        อาคารทั้งหมด: ${total}<br>
+        🔴 รุนแรงมาก: ${s["รุนแรงมาก"]}
+    `;
+}
+
+// ===== WARNING =====
+function updateWarning(s) {
+
+    let level = "GREEN";
+    if (s["รุนแรงมาก"] > 100) level = "RED";
+    else if (s["รุนแรง"] > 100) level = "ORANGE";
+    else if (s["รุนแรงปานกลาง"] > 100) level = "YELLOW";
+
+    let color = {
+        GREEN: "#2ecc71",
+        YELLOW: "#f1c40f",
+        ORANGE: "#e67e22",
+        RED: "#8b0000"
+    }[level];
+
+    let el = document.getElementById('warning-banner');
+    el.style.background = color;
+    el.innerHTML = "🚨 WARNING LEVEL: " + level;
+}
+
+// ===== EVENTS =====
+document.querySelectorAll('#page5 input[type=checkbox]')
+    .forEach(cb => cb.addEventListener('change', drawBuildings));
+
+document.getElementById('cost-per-m2')
+    .addEventListener('input', drawBuildings);
+
+    </script>
+</body>
+</html>
